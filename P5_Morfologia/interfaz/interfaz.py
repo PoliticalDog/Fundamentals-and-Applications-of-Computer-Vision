@@ -37,6 +37,53 @@ THEME = {
     'border':'#434C5E'
 }
 
+# ========= Estado global (imagen compartida entre pestañas) =========
+class AppState:
+    def __init__(self):
+        self.path = None
+        self.img_pil = None   # RGB (PIL)
+        self.img_bgr = None   # BGR (OpenCV)
+
+    def has_image(self):
+        return self.img_bgr is not None
+
+    def set_from_pil(self, path, img_pil: Image.Image):
+        self.path = path
+        self.img_pil = img_pil
+        self.img_bgr = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+    def set_from_bgr(self, path, img_bgr: np.ndarray):
+        self.path = path
+        self.img_bgr = img_bgr
+        self.img_pil = Image.fromarray(cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB))
+
+# ========= Helper general para guardar imágenes =========
+def save_image_dialog(img, default_name="resultado"):
+    if img is None:
+        messagebox.showinfo("Info", "No hay imagen para guardar.")
+        return
+    path = filedialog.asksaveasfilename(
+        defaultextension=".png",
+        initialfile=default_name,
+        filetypes=[
+            ("PNG", "*.png"),
+            ("JPG", "*.jpg;*.jpeg"),
+            ("BMP", "*.bmp"),
+            ("TIFF", "*.tif;*.tiff"),
+        ]
+    )
+    if not path:
+        return
+    try:
+        if isinstance(img, Image.Image):
+            img.save(path)
+        else:
+            arr = img
+            cv2.imwrite(path, arr)
+        messagebox.showinfo("Guardado", f"Imagen guardada en:\n{path}")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo guardar.\n{e}")
+
 # ===== ScrollableFrame reutilizable (Canvas + Scrollbar) =====
 class ScrollableFrame(tk.Frame):
     def __init__(self, master, bg="#ffffff", width=300, *args, **kwargs):
@@ -65,12 +112,10 @@ class ScrollableFrame(tk.Frame):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def _on_canvas_configure(self, event):
-        # Mantiene el frame interior con el mismo ancho visual del canvas
         self.canvas.itemconfigure(self._win, width=event.width)
 
     # ---- Mousewheel cross-platform ----
     def _on_mousewheel_windows_mac(self, event):
-        # Windows: event.delta ±120 ; macOS: ±1 (a veces ±120 también)
         step = -1 if event.delta > 0 else 1
         self.canvas.yview_scroll(step, "units")
 
@@ -81,9 +126,7 @@ class ScrollableFrame(tk.Frame):
         self.canvas.yview_scroll(1, "units")
 
     def _bind_mousewheel(self, _):
-        # Windows / Mac
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel_windows_mac)
-        # Linux (X11)
         self.canvas.bind_all("<Button-4>", self._on_mousewheel_linux_up)
         self.canvas.bind_all("<Button-5>", self._on_mousewheel_linux_down)
 
@@ -94,12 +137,38 @@ class ScrollableFrame(tk.Frame):
 
 # ========= Pestaña Práctica 1 =========
 class TabPractica1(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, app_state: AppState):
         super().__init__(master, bg=THEME['bg_main'])
+        self.state = app_state
         self.ruta = None
         self.img_pil = None
         self.img_gray = None
+        self.current_image = None  # lo que se puede guardar
         self._build()
+
+    def use_global(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+
+        # Tomamos la imagen global en PIL
+        if self.state.img_pil is not None:
+            self.img_pil = self.state.img_pil.copy()
+        else:
+            # Por seguridad, converimos desde BGR si no hubiera PIL guardada
+                rgb = cv2.cvtColor(self.state.img_bgr, cv2.COLOR_BGR2RGB)
+                self.img_pil = Image.fromarray(rgb)
+
+        self.ruta = self.state.path or ""
+        self.img_gray = None  # reseteamos gris, se recalculará cuando la pidas
+
+          # Actualizar preview
+        prev = self.img_pil.copy()
+        prev.thumbnail((360, 360))
+        self.tkprev = ImageTk.PhotoImage(prev)
+        self.preview.configure(image=self.tkprev, text="")
+
+        # Para el botón "Guardar imagen actual…"
+        self.current_image = self.img_pil
 
     def _build(self):
         # Lado izquierdo con scroll
@@ -110,9 +179,9 @@ class TabPractica1(tk.Frame):
         right = tk.Frame(self, bg=THEME['bg_main'])
         right.pack(side=tk.RIGHT, expand=True, fill=tk.BOTH, padx=8, pady=8)
 
-        # Botones izquierda
         ttk.Style().theme_use("clam")
         ttk.Button(left, text="Cargar imagen", command=self.load_image).pack(fill=tk.X, pady=3)
+        ttk.Button(left, text="Usar imagen global…", command=self.use_global).pack(fill=tk.X, pady=2)
         ttk.Button(left, text="Separar RGB", command=self.separar_rgb).pack(fill=tk.X, pady=3)
         ttk.Button(left, text="A grises", command=self.to_gray).pack(fill=tk.X, pady=3)
         ttk.Button(left, text="Binarizar (umbral)", command=self.binarizar_umbral).pack(fill=tk.X, pady=3)
@@ -131,6 +200,9 @@ class TabPractica1(tk.Frame):
         ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=6)
         ttk.Button(left, text="Calcular stats (RGB/Gris)", command=self.calc_stats_console).pack(fill=tk.X, pady=2)
 
+        ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=6)
+        ttk.Button(left, text="Guardar imagen actual…", command=self.save_current).pack(fill=tk.X, pady=2)
+
         # Panel derecho
         self.preview = tk.Label(right, text="(preview)", bg=THEME['bg_accent'], fg=THEME['text_primary'], height=18)
         self.preview.pack(side=tk.TOP, fill=tk.X, pady=4)
@@ -140,61 +212,104 @@ class TabPractica1(tk.Frame):
         self.canvas = FigureCanvasTkAgg(self.fig, master=right)
         self.canvas.get_tk_widget().pack(expand=True, fill=tk.BOTH)
 
+    def _update_preview_from_array(self, arr):
+        img_pil = Image.fromarray(arr)
+        prev = img_pil.copy()
+        prev.thumbnail((360, 360))
+        self.tkprev = ImageTk.PhotoImage(prev)
+        self.preview.configure(image=self.tkprev, text="")
+
     def load_image(self):
         path = filedialog.askopenfilename(filetypes=[("Imágenes", "*.jpg;*.jpeg;*.png;*.bmp")])
-        if not path: return
+        if not path:
+            return
         self.ruta = path
         try:
-            self.img_pil = p1.cargar_imagen(path)  # también muestra la imagen con plt (se respeta)
-            # preview embebido
+            self.img_pil = p1.cargar_imagen(path)  # respeta tu lógica original (plt)
             prev = self.img_pil.copy()
             prev.thumbnail((360, 360))
             self.tkprev = ImageTk.PhotoImage(prev)
             self.preview.configure(image=self.tkprev, text="")
+            self.current_image = self.img_pil
+            # actualizamos imagen global
+            self.state.set_from_pil(path, self.img_pil)
         except Exception as e:
             messagebox.showerror("Error", str(e))
 
     def separar_rgb(self):
         if not self.img_pil:
             return messagebox.showinfo("Aviso", "Carga una imagen.")
+        # Mostrar como siempre
         p1.separar_rgb(self.img_pil)
+
+        # Opción de guardar los componentes
+        if not messagebox.askyesno("Guardar componentes",
+                                   "¿Deseas guardar las imágenes de los canales R, G y B?"):
+            return
+        base = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            initialfile="componentes",
+            filetypes=[("PNG", "*.png"), ("JPG", "*.jpg;*.jpeg"), ("BMP", "*.bmp")]
+        )
+        if not base:
+            return
+        root, ext = os.path.splitext(base)
+        r, g, b = self.img_pil.split()
+        try:
+            r.save(root + "_R" + ext)
+            g.save(root + "_G" + ext)
+            b.save(root + "_B" + ext)
+            messagebox.showinfo("Guardado",
+                                f"Componentes guardados como:\n{root}_R{ext}\n{root}_G{ext}\n{root}_B{ext}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudieron guardar los componentes.\n{e}")
 
     def to_gray(self):
         if not self.img_pil:
             return messagebox.showinfo("Aviso", "Carga una imagen.")
         self.img_gray = p1.convertir_a_grises(self.img_pil)
         try:
-            img_pil = Image.fromarray(self.img_gray)
-            prev = img_pil.copy(); prev.thumbnail((360,360))
-            self.tkprev = ImageTk.PhotoImage(prev)
-            self.preview.configure(image=self.tkprev, text="")
+            self._update_preview_from_array(self.img_gray)
+            self.current_image = self.img_gray
         except:
             pass
 
     def binarizar_umbral(self):
         if self.img_gray is None:
-            if not self.img_pil: return messagebox.showinfo("Aviso", "Carga una imagen.")
+            if not self.img_pil:
+                return messagebox.showinfo("Aviso", "Carga una imagen.")
             self.img_gray = p1.convertir_a_grises(self.img_pil)
         umbral = simpledialog.askinteger("Umbral", "Valor (0-255):", minvalue=0, maxvalue=255)
-        if umbral is None: return
-        p1.binarizar_imagen_umbral(self.img_gray, umbral)
+        if umbral is None:
+            return
+        binaria = p1.binarizar_imagen_umbral(self.img_gray, umbral)
+        if binaria is not None:
+            self._update_preview_from_array(binaria)
+            self.current_image = binaria
 
     def binarizar_otsu(self):
         if self.img_gray is None:
-            if not self.img_pil: return messagebox.showinfo("Aviso", "Carga una imagen.")
+            if not self.img_pil:
+                return messagebox.showinfo("Aviso", "Carga una imagen.")
             self.img_gray = p1.convertir_a_grises(self.img_pil)
-        p1.binarizar_imagen_otsu(self.img_gray)
+        binaria = p1.binarizar_imagen_otsu(self.img_gray)
+        if binaria is not None:
+            self._update_preview_from_array(binaria)
+            self.current_image = binaria
 
     def to_cmyk(self):
-        if not self.img_pil: return messagebox.showinfo("Aviso", "Carga una imagen.")
+        if not self.img_pil:
+            return messagebox.showinfo("Aviso", "Carga una imagen.")
         p1.convertir_a_cmyk(self.img_pil)
 
     def to_hsl(self):
-        if not self.img_pil: return messagebox.showinfo("Aviso", "Carga una imagen.")
+        if not self.img_pil:
+            return messagebox.showinfo("Aviso", "Carga una imagen.")
         p1.convertir_a_hsl(self.img_pil)
 
     def plot_hist(self, canal):
-        if not self.ruta: return messagebox.showinfo("Aviso", "Carga una imagen.")
+        if not self.ruta:
+            return messagebox.showinfo("Aviso", "Carga una imagen.")
         self.ax.clear()
         self.ax.set_facecolor(THEME['bg_secondary'])
         self.ax.grid(True, color=THEME['text_secondary'], alpha=0.25)
@@ -226,19 +341,23 @@ class TabPractica1(tk.Frame):
         self.canvas.draw()
 
     def calc_stats_console(self):
-        if not self.ruta: return messagebox.showinfo("Aviso", "Carga una imagen.")
+        if not self.ruta:
+            return messagebox.showinfo("Aviso", "Carga una imagen.")
         p1.calcular_histogramas_rgb(self.ruta)
         p1.calcular_histograma_grises(self.ruta)
 
+    def save_current(self):
+        save_image_dialog(self.current_image, default_name="P1_imagen")
 
 # ========= Pestaña Práctica 2 =========
 class TabPractica2(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, app_state: AppState):
         super().__init__(master, bg=THEME['bg_main'])
+        self.state = app_state
         self.imgA = None; self.imgB = None
         self.binA = None; self.binB = None
         self.result = None
-        os.makedirs("out", exist_ok=True)
+        self.tkA = self.tkB = self.tkR = None
         self._build()
 
     def _build(self):
@@ -253,6 +372,8 @@ class TabPractica2(tk.Frame):
         ttk.Style().theme_use("clam")
         ttk.Label(left, text="IMAGEN A").pack(anchor="w")
         ttk.Button(left, text="Cargar A", command=self.load_A).pack(fill=tk.X, pady=2)
+        ttk.Button(left, text="Usar imagen global en A", command=self.use_global_A).pack(fill=tk.X, pady=2)
+
         self.thA = tk.IntVar(value=127); self.otsuA = tk.BooleanVar(value=False)
         ttk.Label(left, text="Umbral A").pack(anchor="w")
         tk.Scale(left, from_=0, to=255, orient=tk.HORIZONTAL, variable=self.thA,
@@ -264,6 +385,8 @@ class TabPractica2(tk.Frame):
 
         ttk.Label(left, text="IMAGEN B").pack(anchor="w")
         ttk.Button(left, text="Cargar B", command=self.load_B).pack(fill=tk.X, pady=2)
+        ttk.Button(left, text="Usar imagen global en B", command=self.use_global_B).pack(fill=tk.X, pady=2)
+
         self.thB = tk.IntVar(value=127); self.otsuB = tk.BooleanVar(value=False)
         ttk.Label(left, text="Umbral B").pack(anchor="w")
         tk.Scale(left, from_=0, to=255, orient=tk.HORIZONTAL, variable=self.thB,
@@ -288,6 +411,9 @@ class TabPractica2(tk.Frame):
         ttk.Button(rf, text="A == B", command=self.op_eq).pack(fill=tk.X, padx=4, pady=2)
         ttk.Button(rf, text="A != B", command=self.op_neq).pack(fill=tk.X, padx=4, pady=2)
 
+        ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=6)
+        ttk.Button(left, text="Guardar resultado…", command=self.save_result).pack(fill=tk.X, pady=2)
+
         grid = tk.Frame(right, bg=THEME['bg_main'])
         grid.pack(expand=True, fill=tk.BOTH)
         self.lblA = tk.Label(grid, text="A", bg=THEME['bg_accent'], fg=THEME['text_primary'], width=50, height=22)
@@ -300,20 +426,41 @@ class TabPractica2(tk.Frame):
         grid.grid_columnconfigure(1, weight=1)
         grid.grid_rowconfigure(0, weight=1)
         grid.grid_rowconfigure(1, weight=1)
-        self.tkA = self.tkB = self.tkR = None
 
     # ---- acciones
     def load_A(self):
         path = filedialog.askopenfilename(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg;*.bmp")])
         if not path: return
         self.imgA = cv2.imread(path); self.binA = None
+        if self.imgA is None:
+            return messagebox.showerror("Error", "No se pudo cargar la imagen A.")
         self.tkA = cv_to_tk(self.imgA)
         if self.tkA: self.lblA.configure(image=self.tkA, text="")
+        self.state.set_from_bgr(path, self.imgA)
 
     def load_B(self):
         path = filedialog.askopenfilename(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg;*.bmp")])
         if not path: return
         self.imgB = cv2.imread(path); self.binB = None
+        if self.imgB is None:
+            return messagebox.showerror("Error", "No se pudo cargar la imagen B.")
+        self.tkB = cv_to_tk(self.imgB)
+        if self.tkB: self.lblB.configure(image=self.tkB, text="")
+        self.state.set_from_bgr(path, self.imgB)
+
+    def use_global_A(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+        self.imgA = self.state.img_bgr.copy()
+        self.binA = None
+        self.tkA = cv_to_tk(self.imgA)
+        if self.tkA: self.lblA.configure(image=self.tkA, text="")
+
+    def use_global_B(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+        self.imgB = self.state.img_bgr.copy()
+        self.binB = None
         self.tkB = cv_to_tk(self.imgB)
         if self.tkB: self.lblB.configure(image=self.tkB, text="")
 
@@ -335,70 +482,74 @@ class TabPractica2(tk.Frame):
             return None, None
         return p2.ensure_same_size(self.binA, self.binB)
 
-    def _show_and_save(self, img, name):
+    def _show_result(self, img):
         self.result = img
         self.tkR = cv_to_tk(img)
         if self.tkR: self.lblR.configure(image=self.tkR, text="")
-        cv2.imwrite(os.path.join("out", f"{name}.png"), img)
-        messagebox.showinfo("Guardado", f"Resultado: out/{name}.png")
 
     # lógicas
     def op_and(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_and(A,B), "AND")
+        self._show_result(p2.op_and(A,B))
 
     def op_or(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_or(A,B), "OR")
+        self._show_result(p2.op_or(A,B))
 
     def op_xor(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_xor(A,B), "XOR")
+        self._show_result(p2.op_xor(A,B))
 
     def op_not_a(self):
         if self.binA is None: return messagebox.showinfo("Atención", "Binariza A primero.")
-        self._show_and_save(p2.op_not(self.binA), "NOT_A")
+        self._show_result(p2.op_not(self.binA))
 
     def op_not_b(self):
         if self.binB is None: return messagebox.showinfo("Atención", "Binariza B primero.")
-        self._show_and_save(p2.op_not(self.binB), "NOT_B")
+        self._show_result(p2.op_not(self.binB))
 
     def op_gt(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_gt(A,B), "A_GT_B")
+        self._show_result(p2.op_gt(A,B))
 
     def op_lt(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_lt(A,B), "A_LT_B")
+        self._show_result(p2.op_lt(A,B))
 
     def op_eq(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_eq(A,B), "A_EQ_B")
+        self._show_result(p2.op_eq(A,B))
 
     def op_neq(self):
         A,B = self._pair()
         if A is None: return
-        self._show_and_save(p2.op_neq(A,B), "A_NEQ_B")
+        self._show_result(p2.op_neq(A,B))
 
+    def save_result(self):
+        if self.result is None:
+            return messagebox.showinfo("Info", "No hay resultado para guardar.")
+        save_image_dialog(self.result, default_name="P2_resultado")
 
 # ========= Pestaña Práctica 3 =========
 class TabPractica3(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, app_state: AppState):
         super().__init__(master, bg=THEME['bg_main'])
+        self.state = app_state
         self.img = None
         self.binimg = None
         self.labels4 = self.labels8 = None
         self.color4 = self.color8 = None
+        self.current = None  # imagen actualmente mostrada
+        self.tkimg = None
         self._build()
 
     def _build(self):
-        # Lado izquierdo con scroll
         sf = ScrollableFrame(self, bg=THEME['bg_secondary'])
         sf.pack(side=tk.LEFT, fill=tk.BOTH, padx=8, pady=8)
         left = sf.inner
@@ -410,6 +561,7 @@ class TabPractica3(tk.Frame):
         ttk.Label(left, text="Flujo: Cargar → Binarizar → Etiquetar → Mostrar",
                   foreground=THEME['text_secondary'], background=THEME['bg_secondary']).pack(anchor="w", pady=(4,8))
         ttk.Button(left, text="Cargar imagen…", command=self.load_image).pack(fill=tk.X, pady=2)
+        ttk.Button(left, text="Usar imagen global…", command=self.use_global).pack(fill=tk.X, pady=2)
 
         binf = tk.LabelFrame(left, text="Binarización", bg=THEME['bg_secondary'], fg=THEME['text_primary'])
         binf.pack(fill=tk.X, pady=6)
@@ -433,10 +585,12 @@ class TabPractica3(tk.Frame):
         ttk.Button(showf, text="4-Conex", command=self.show_labels4).pack(fill=tk.X, padx=6, pady=2)
         ttk.Button(showf, text="8-Conex", command=self.show_labels8).pack(fill=tk.X, padx=6, pady=2)
 
+        ttk.Separator(left, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=6)
+        ttk.Button(left, text="Guardar imagen mostrada…", command=self.save_current).pack(fill=tk.X, pady=2)
+
         self.viewer = tk.Label(right, text="Aquí se muestra la imagen", bg=THEME['bg_accent'],
                                fg=THEME['text_primary'], width=60, height=28)
         self.viewer.pack(expand=True, fill=tk.BOTH)
-        self.tkimg = None
 
     def load_image(self):
         path = filedialog.askopenfilename(filetypes=[("Imágenes", "*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff")])
@@ -445,6 +599,15 @@ class TabPractica3(tk.Frame):
         if img is None:
             return messagebox.showerror("Error", "No se pudo cargar la imagen.")
         self.img = img; self.binimg = None
+        self.labels4 = self.labels8 = self.color4 = self.color8 = None
+        self._show(self.img)
+        self.state.set_from_bgr(path, img)
+
+    def use_global(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+        self.img = self.state.img_bgr.copy()
+        self.binimg = None
         self.labels4 = self.labels8 = self.color4 = self.color8 = None
         self._show(self.img)
 
@@ -471,6 +634,7 @@ class TabPractica3(tk.Frame):
             self.viewer.configure(image=self.tkimg, text="")
         else:
             self.viewer.configure(image="", text="(sin imagen)")
+        self.current = img
 
     def show_original(self):
         if self.img is None: return messagebox.showinfo("Info", "No hay imagen cargada.")
@@ -488,10 +652,16 @@ class TabPractica3(tk.Frame):
         if self.color8 is None: return messagebox.showinfo("Info", "Aún no has etiquetado.")
         self._show(self.color8)
 
+    def save_current(self):
+        if self.current is None:
+            return messagebox.showinfo("Info", "No hay imagen para guardar.")
+        save_image_dialog(self.current, default_name="P3_imagen")
+
 # PRACTICA 4
 class TabPractica4(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, app_state: AppState):
         super().__init__(master, bg=THEME['bg_main'])
+        self.state = app_state
         self.gray = None
         self._build()
 
@@ -502,9 +672,13 @@ class TabPractica4(tk.Frame):
         btn_select = ttk.Button(top, text="Seleccionar imagen…", command=self.select_image)
         btn_select.pack(side=tk.LEFT)
 
+        btn_global = ttk.Button(top, text="Usar imagen global…", command=self.use_global)
+        btn_global.pack(side=tk.LEFT, padx=4)
+
         self.cmap_var = tk.StringVar(self)
         self.cmap_var.set(p4.GRAYSCALE_OPTION)
-        self.menu = ttk.OptionMenu(top, self.cmap_var, self.cmap_var.get(), *p4.get_menu_items(), command=lambda *_: self.update_plot())
+        self.menu = ttk.OptionMenu(top, self.cmap_var, self.cmap_var.get(),
+                                   *p4.get_menu_items(), command=lambda *_: self.update_plot())
         self.menu.config(width=32)
         self.menu.pack(side=tk.LEFT, padx=8)
 
@@ -528,6 +702,9 @@ class TabPractica4(tk.Frame):
 
         btn_random = ttk.Button(bottom, text="Nuevo aleatorio", command=self.new_random)
         btn_random.pack(side=tk.RIGHT, padx=4)
+
+        btn_save = ttk.Button(bottom, text="Guardar visualización…", command=self.save_plot)
+        btn_save.pack(side=tk.RIGHT, padx=4)
 
     def _refresh_menu_items(self):
         menu = self.menu["menu"]
@@ -554,6 +731,18 @@ class TabPractica4(tk.Frame):
             return
         self.gray = gray
         self.lbl_path.config(text=path)
+        self.update_plot()
+        # actualiza global
+        img_bgr = cv2.imread(path, cv2.IMREAD_COLOR)
+        if img_bgr is not None:
+            self.state.set_from_bgr(path, img_bgr)
+
+    def use_global(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+        self.gray = p4.load_gray(self.state.path) if self.state.path else cv2.cvtColor(
+            self.state.img_bgr, cv2.COLOR_BGR2GRAY)
+        self.lbl_path.config(text=self.state.path or "Imagen global")
         self.update_plot()
 
     def update_plot(self):
@@ -582,17 +771,33 @@ class TabPractica4(tk.Frame):
         self.fig.tight_layout()
         self.canvas.draw()
 
+    def save_plot(self):
+        if self.gray is None:
+            return messagebox.showinfo("Info", "No hay visualización para guardar.")
+        path = filedialog.asksaveasfilename(
+            defaultextension=".png",
+            initialfile="P4_pseudocolor",
+            filetypes=[("PNG", "*.png"), ("JPG", "*.jpg;*.jpeg"), ("BMP", "*.bmp"), ("TIFF", "*.tif;*.tiff")]
+        )
+        if not path:
+            return
+        try:
+            self.fig.savefig(path)
+            messagebox.showinfo("Guardado", f"Visualización guardada en:\n{path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar.\n{e}")
+
 # ========= Pestaña Práctica 5 =========
 class TabPractica5(tk.Frame):
-    def __init__(self, master):
+    def __init__(self, master, app_state: AppState):
         super().__init__(master, bg=THEME['bg_main'])
+        self.state = app_state
         self.img = None          # imagen cargada (BGR)
         self.gray = None         # gris
         self.binimg = None       # binaria (0/255)
         self.proc = None         # resultado procesado
         self.tk_src = None
         self.tk_dst = None
-        os.makedirs("out_morf", exist_ok=True)
         self._build()
 
     # ---------- UI ----------
@@ -609,6 +814,8 @@ class TabPractica5(tk.Frame):
         # ---- Carga e info
         ttk.Style().theme_use("clam")
         ttk.Button(left, text="Cargar imagen…", command=self.load_image).pack(fill=tk.X, pady=4)
+        ttk.Button(left, text="Usar imagen global…", command=self.use_global).pack(fill=tk.X, pady=2)
+
         self.lbl_info = tk.Label(left, text="Sin imagen", anchor="w",
                                  bg=THEME['bg_secondary'], fg=THEME['text_secondary'], wraplength=240, justify="left")
         self.lbl_info.pack(fill=tk.X, pady=(0,6))
@@ -740,6 +947,19 @@ class TabPractica5(tk.Frame):
         self.lbl_info.config(text=f"{path}\n{w}×{h}")
         self._show_src()
         self.lbl_dst.configure(image="", text="Procesada")
+        self.state.set_from_bgr(path, img)
+
+    def use_global(self):
+        if not self.state.has_image():
+            return messagebox.showinfo("Info", "Aún no hay imagen global cargada.")
+        self.img = self.state.img_bgr.copy()
+        self.gray = p5._to_gray(self.img)
+        self.binimg = None
+        self.proc = None
+        h, w = self.gray.shape[:2]
+        self.lbl_info.config(text=f"{self.state.path or 'Imagen global'}\n{w}×{h}")
+        self._show_src()
+        self.lbl_dst.configure(image="", text="Procesada")
 
     def apply_binary(self):
         if not self._ensure_img(): return
@@ -855,7 +1075,6 @@ class TabPractica5(tk.Frame):
             messagebox.showinfo("Atención", "Hit-or-Miss requiere imagen binaria.\nAplica binarización primero.")
             return
 
-        # Ventana simple para editar un kernel 3x3 (0/1) con presets
         dialog = tk.Toplevel(self)
         dialog.title("Hit-or-Miss - Kernel 3×3")
         dialog.configure(bg=THEME['bg_secondary'])
@@ -874,14 +1093,12 @@ class TabPractica5(tk.Frame):
                 for j in range(3):
                     vals[i][j].set(k[i][j])
 
-        # Grid de checks
         grid = tk.Frame(dialog, bg=THEME['bg_secondary'])
         grid.pack(padx=8, pady=8)
         for i in range(3):
             for j in range(3):
                 tk.Checkbutton(grid, variable=vals[i][j], bg=THEME['bg_secondary']).grid(row=i, column=j, padx=4, pady=4)
 
-        # Presets
         presetf = tk.Frame(dialog, bg=THEME['bg_secondary']); presetf.pack(padx=8, pady=(0,8), fill=tk.X)
         ttk.Label(presetf, text="Preset:").pack(side=tk.LEFT)
         pvar = tk.StringVar(value="Cruz")
@@ -906,15 +1123,7 @@ class TabPractica5(tk.Frame):
     def save_result(self):
         if self.proc is None:
             return messagebox.showinfo("Info", "No hay resultado para guardar.")
-        path = filedialog.asksaveasfilename(defaultextension=".png",
-                                            initialdir="out_morf",
-                                            filetypes=[("PNG", "*.png"), ("JPG", "*.jpg;*.jpeg"), ("BMP", "*.bmp"), ("TIFF", "*.tif;*.tiff")])
-        if not path: return
-        try:
-            cv2.imwrite(path, self.proc)
-            messagebox.showinfo("Guardado", f"Resultado guardado en:\n{path}")
-        except Exception as e:
-            messagebox.showerror("Error", f"No se pudo guardar.\n{e}")
+        save_image_dialog(self.proc, default_name="P5_morfologia")
 
 # ========= App raíz (Notebook) =========
 def run_app():
@@ -923,17 +1132,18 @@ def run_app():
     root.geometry("1280x720")
     root.configure(bg=THEME['bg_main'])
 
+    state = AppState()
+
     nb = ttk.Notebook(root)
     nb.pack(expand=True, fill=tk.BOTH)
 
-    nb.add(TabPractica1(nb), text="Práctica 1: Básico & Histogramas")
-    nb.add(TabPractica2(nb), text="Práctica 2: Lógicas & Relacionales")
-    nb.add(TabPractica3(nb), text="Práctica 3: Etiquetado 4 vs 8")
-    nb.add(TabPractica4(nb), text="Práctica 4: Pseudocolor")
-    nb.add(TabPractica5(nb), text="Práctica 5: Morfología")
+    nb.add(TabPractica1(nb, state), text="Práctica 1: Básico & Histogramas")
+    nb.add(TabPractica2(nb, state), text="Práctica 2: Lógicas & Relacionales")
+    nb.add(TabPractica3(nb, state), text="Práctica 3: Etiquetado 4 vs 8")
+    nb.add(TabPractica4(nb, state), text="Práctica 4: Pseudocolor")
+    nb.add(TabPractica5(nb, state), text="Práctica 5: Morfología")
 
     root.mainloop()
 
-# Ejecutar directamente si se llama como script
 if __name__ == "__main__":
     run_app()

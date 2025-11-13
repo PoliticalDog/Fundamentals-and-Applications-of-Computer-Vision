@@ -3,8 +3,8 @@ import cv2
 import numpy as np
 from typing import Literal, Optional, Tuple
 
-# ===================== Helpers =====================
-
+# ===================== METODOS =====================
+#Gries 
 def _to_gray(img: np.ndarray) -> np.ndarray:
     """Convierte BGR a GRAY si es necesario; preserva si ya es GRAY."""
     if img is None:
@@ -13,6 +13,7 @@ def _to_gray(img: np.ndarray) -> np.ndarray:
         return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     return img.copy()
 
+#bINARIOS
 def to_binary(img: np.ndarray, thresh: int = 127, use_otsu: bool = False, invert: bool = False) -> np.ndarray:
     """
     Convierte la imagen a binaria (0/255) con umbral fijo u Otsu.
@@ -27,6 +28,7 @@ def to_binary(img: np.ndarray, thresh: int = 127, use_otsu: bool = False, invert
         _, binimg = cv2.threshold(gray, t, 255, ttype)
     return binimg
 
+#Redimensionar imagenes
 def ensure_same_size(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Redimensiona B a A si no coinciden tamaños (interpolación adecuada).
@@ -39,6 +41,7 @@ def ensure_same_size(a: np.ndarray, b: np.ndarray) -> Tuple[np.ndarray, np.ndarr
     b2 = cv2.resize(b, (wa, ha), interpolation=interp)
     return a, b2
 
+#Construe ell amepo de EE
 def make_se(ksize: int = 3, shape: Literal["rect", "ellipse", "cross"] = "rect") -> np.ndarray:
     """
     Crea elemento estructurante (EE) con forma y tamaño dados.
@@ -54,27 +57,31 @@ def make_se(ksize: int = 3, shape: Literal["rect", "ellipse", "cross"] = "rect")
         st = cv2.MORPH_RECT
     return cv2.getStructuringElement(st, (k, k))
 
+#Validacion bianria
 def _is_binary(img: np.ndarray) -> bool:
     """Heurística: ¿solo 0/255?"""
     u = np.unique(img)
     return u.size <= 2 and set(u.tolist()).issubset({0, 255})
 
 # ================= Operaciones básicas (binario y gris) =================
-
+#Erocion
 def erode(img: np.ndarray, ksize: int = 3, shape: str = "rect", iterations: int = 1) -> np.ndarray:
     return cv2.erode(img, make_se(ksize, shape), iterations=iterations)
 
+#Dilatacion
 def dilate(img: np.ndarray, ksize: int = 3, shape: str = "rect", iterations: int = 1) -> np.ndarray:
     return cv2.dilate(img, make_se(ksize, shape), iterations=iterations)
 
+#Apertura
 def open_morph(img: np.ndarray, ksize: int = 3, shape: str = "rect", iterations: int = 1) -> np.ndarray:
     return cv2.morphologyEx(img, cv2.MORPH_OPEN, make_se(ksize, shape), iterations=iterations)
 
+#Cierre
 def close_morph(img: np.ndarray, ksize: int = 3, shape: str = "rect", iterations: int = 1) -> np.ndarray:
     return cv2.morphologyEx(img, cv2.MORPH_CLOSE, make_se(ksize, shape), iterations=iterations)
 
 # ===================== Gradientes morfológicos =====================
-
+#Gradiante
 def gradient(img: np.ndarray, ksize: int = 3, shape: str = "rect",
              mode: Literal["sym", "int", "ext"] = "sym") -> np.ndarray:
     """
