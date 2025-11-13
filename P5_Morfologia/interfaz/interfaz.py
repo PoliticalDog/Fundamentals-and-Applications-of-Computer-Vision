@@ -629,7 +629,7 @@ class TabPractica5(tk.Frame):
         par = tk.LabelFrame(left, text="Parámetros morfológicos", bg=THEME['bg_secondary'], fg=THEME['text_primary'])
         par.pack(fill=tk.X, pady=6)
         row = tk.Frame(par, bg=THEME['bg_secondary']); row.pack(fill=tk.X, padx=6, pady=2)
-        tk.Label(row, text="Tamaño EE (impar):", bg=THEME['bg_secondary'], fg=THEME['text_secondary']).pack(side=tk.LEFT)
+        tk.Label(row, text="Vecindad (EE impar):", bg=THEME['bg_secondary'], fg=THEME['text_secondary']).pack(side=tk.LEFT)
         self.ksize = tk.IntVar(value=3)
         tk.Spinbox(row, from_=1, to=31, increment=2, width=4, textvariable=self.ksize).pack(side=tk.LEFT, padx=6)
 
