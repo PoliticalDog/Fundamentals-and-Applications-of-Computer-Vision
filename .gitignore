@@ -1,0 +1,15 @@
+# ======================================================
+# ADVERTENCIA:
+# La carpeta "garbage-dataset" se ignora porque contiene
+# ~20,000 imágenes y es demasiado pesada para el repositorio.
+#
+# Dataset original (Kaggle):
+# https://www.kaggle.com/datasets/sumn2u/garbage-classification-v2?select=garbage-dataset
+#
+# Para poder trabajar con diferentes imagenes y jugar con los metodos se recomienda descargar el proyecto:
+# 1. Descargar el dataset desde Kaggle
+# 2. Extraerlo en la raíz del proyecto con el nombre:
+#    "garbage-dataset/"
+# ======================================================
+
+garbage-dataset/
