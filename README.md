@@ -1,78 +1,97 @@
-# IMAGE ANALYSIS  
+#  IMAGE ANALYSIS  
 ## Prácticas de Visión por Computadora y Procesamiento Digital de Imágenes
 
-Este repositorio contiene una colección de prácticas desarrolladas en **Python** para el estudio de técnicas fundamentales de **Análisis y Procesamiento Digital de Imágenes**, realizadas como parte de una materia académica de Visión por Computadora.
+Este repositorio contiene una **colección estructurada de prácticas en Python** orientadas al estudio de técnicas fundamentales de **Procesamiento Digital de Imágenes (PDI)** y **Visión por Computadora**, desarrolladas con fines **académicos y experimentales**.
 
-El proyecto integra métodos de procesamiento espacial y en el dominio de la frecuencia, abarcando desde histogramas y binarización hasta transformadas espectrales como **FFT** y **DCT**.
+El proyecto integra procesamiento en el **dominio espacial** y en el **dominio de la frecuencia**, abarcando desde histogramas y binarización hasta técnicas avanzadas como **FFT** y **DCT**, todo organizado en módulos reutilizables y una **interfaz gráfica unificada**.
 
 ---
+
+##  Objetivos del proyecto
+
+- Comprender y aplicar técnicas clásicas de PDI.
+- Analizar el efecto del ruido y los filtros espaciales.
+- Explorar el dominio de la frecuencia para realce y filtrado.
+- Implementar una arquitectura modular y escalable en Python.
+- Centralizar las prácticas mediante una interfaz gráfica común.
 
 ---
 
 ##  Prácticas implementadas
 
-- Análisis de histogramas e intensidades
-- Binarización de imágenes
-- Operaciones lógicas y relacionales
-- Etiquetado de regiones (4 y 8 conectividades)
-- Pseudocolor y mapas de color
-- Morfología matemática
-- Ruido en imágenes y filtrado espacial
-- Procesamiento en el dominio de la frecuencia:
-  - FFT y filtrado frecuencial
-  - DCT y reconstrucción de imagen
+- **Histogramas e intensidades**
+  - Histogramas RGB
+  - Binarización
+- **Operaciones lógicas y relacionales**
+- **Etiquetado de regiones**
+  - Conectividad 4 y 8
+- **Pseudocolor**
+  - Mapas de color para realce visual
+- **Morfología matemática**
+  - Erosión, dilatación, apertura y cierre
+- **Ruido y filtrado**
+  - Ruido sal y pimienta
+  - Ruido gaussiano
+  - Filtros espaciales lineales y no lineales
+- **Dominio de la frecuencia**
+  - Transformada Rápida de Fourier (FFT)
+  - Filtrado frecuencial (ideal, gaussiano, Butterworth)
+  - Transformada Discreta del Coseno (DCT)
+  - Reconstrucción de imágenes
 
 ---
-
-##  Requisitos
-
-- Python 3.8 o superior
-- NumPy
-- OpenCV
-- Matplotlib
-- SciPy
-
----
-
-##  Ejecución
-
-Se recomienda ejecutar desde P7_Frecuencia/main.py, ya que contiene todas las prácticas unificadas en ese módulo corriendo la interfaz general.
----
-
 
 ##  Estructura del proyecto
 
+```text
 IMAGE ANALYSIS/
 │
-├── P1_RGB_BIN_MODELOS_HISTOGRAMAS/
-│ Análisis de histogramas RGB, binarización y modelos de intensidad
+├── garbage-dataset/              # Dataset externo (ignorado por git)
+├── Imagenes propias/             # Imágenes de prueba
+├── Imagenes Resultados/          # Resultados generados
+├── Tecnicas transformacion/      # Salidas intermedias
 │
-├── P2yP3_Etiquetados_Operaciones/
-│ Operaciones lógicas, relacionales y etiquetado de regiones (4 y 8 conectividades)
+├── interfaz/
+│   ├── __init__.py
+│   └── interfaz.py               # Interfaz gráfica principal
 │
-├── P4_MapaColores/
-│ Técnicas de pseudocolor y visualización mediante mapas de color
+├── modulos/
+│   ├── __init__.py
+│   ├── P1_Histograma_RGB_BIN.py
+│   ├── P2_Logicas_Relacionales.py
+│   ├── P3_Etiquetado_4_8.py
+│   ├── P4_Pseudocolor.py
+│   ├── P5_Morfologia.py
+│   ├── P6_Ruido_Filtrado.py
+│   ├── P7_Frecuencia.py
+│   └── P7_practica_frecuencia_ISC_extension_prof.py
 │
-├── P5_Morfologia/
-│ Morfología matemática: erosión, dilatación, apertura y cierre
-│
-├── P6_Ruido_Filtrado/
-│ Modelado de ruido (sal y pimienta, gaussiano) y filtrado espacial
-│
-├── P7_Frecuencia/
-│ Análisis en el dominio de la frecuencia:
-│ - Transformada Rápida de Fourier (FFT)
-│ - Filtrado en frecuencia (ideal, gaussiano, Butterworth)
-│ - Transformada Discreta del Coseno (DCT)
-│
-├── Imagenes propias/
-│ Imágenes de prueba utilizadas en las prácticas
-│
-├── Imagenes Resultados/
-│ Resultados generados por los algoritmos
-│
-├── garbage-dataset/ (ignorado por git)
-│ Dataset externo de gran tamaño  para jugar con metodos(~20k imágenes) --> https://www.kaggle.com/datasets/sumn2u/garbage-classification-v2?select=garbage-dataset
-│
+├── main.py                       # Punto de entrada del proyecto
 ├── .gitignore
 └── README.md
+
+
+---
+
+## Requisitos
+
+- Python 3.8 o superior
+- NumPy
+- OpenCV (opencv-python)
+- Matplotlib
+- SciPy
+- Pillow
+
+Instalación rápida:
+pip install numpy opencv-python matplotlib scipy pillow
+
+---
+
+ ## NOTAS:
+Las carpetas de resultados e imágenes de prueba se generan dinámicamente.
+
+El proyecto está diseñado para experimentación académica, no para producción.
+
+La estructura modular facilita la extensión con nuevas prácticas de PDI.
+
+---

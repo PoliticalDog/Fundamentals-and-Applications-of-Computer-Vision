@@ -19,5 +19,7 @@ Imagenes Resultados/
 Tecnicas transformacion/
 
 # Archivos temporales de Python
+__pycache__/
 **/__pycache__/
 *.pyc
+*.pyo
