@@ -12,4 +12,12 @@
 #    "garbage-dataset/"
 # ======================================================
 
+# Directorios de datos y resultados
 garbage-dataset/
+Imagenes propias/
+Imagenes Resultados/
+Tecnicas transformacion/
+
+# Archivos temporales de Python
+**/__pycache__/
+*.pyc
